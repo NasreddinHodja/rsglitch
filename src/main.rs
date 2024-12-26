@@ -14,7 +14,6 @@ use winit::{
 #[derive(Default)]
 struct RSGlitch {
     window: Option<Window>,
-    device_state: DeviceState,
 }
 
 impl<T: 'static + Debug> ApplicationHandler<T> for RSGlitch {
@@ -72,7 +71,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // global input monitoring
     thread::spawn(|| {
         monitor_input();
-        println!("spawned");
     });
 
     // setup screen capturing
@@ -81,12 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // setup rendering window
     let event_loop = EventLoop::new().unwrap();
-    match event_loop.run_app(
-        &mut (RSGlitch {
-            window: None,
-            device_state: DeviceState::new(),
-        }),
-    ) {
+    match event_loop.run_app(&mut (RSGlitch { window: None })) {
         Ok(_) => Ok(()),
         Err(e) => panic!("Event loop failure"),
     }
