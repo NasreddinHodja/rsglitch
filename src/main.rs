@@ -9,7 +9,7 @@ extern crate raylib;
 use raylib::prelude::*;
 
 mod capture;
-use capture::capture_screen;
+use capture::{capture_input_states, capture_screen};
 
 fn main() -> Result<(), Box<dyn Error>> {
     const WIDTH: usize = 1920;
@@ -52,20 +52,32 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
         .unwrap();
 
+    // uniform locations
     let texture_location = shader.get_shader_location("texture0");
-    if texture_location != -1 {
-        shader.set_shader_value_texture(texture_location, &texture);
-    } else {
-        eprintln!("Error: texture0 not found");
-    }
+    // let keyboard_keys_location = shader.get_shader_location("keyboardKeys");
+    let mouse_position_location = shader.get_shader_location("mousePosition");
+    // let mouse_keys_location = shader.get_shader_location("mouseKeys");
+    println!("uniform locations: ");
+    println!("texture: {texture_location}");
+    // println!("keyboardKeys: {keyboard_keys_location}");
+    println!("mousePosition: {mouse_position_location}");
+    // println!("mouseKeys: {mouse_keys_location}");
+
+    shader.set_shader_value_texture(texture_location, &texture);
 
     // main loop
     while !rl.window_should_close() {
         // update captured texture
         let mut shared = shared_buffer.lock().unwrap();
         shared = condvar.wait(shared).unwrap();
-
         texture.update_texture(&shared);
+
+        // global events
+        let (_keyboard_keys, mouse_coord, _mouse_keys) = capture_input_states();
+
+        // shader.set_shader_value(keyboard_keys_location, &keyboard_keys[..]);
+        shader.set_shader_value(mouse_position_location, mouse_coord);
+        // shader.set_shader_value(mouse_keys_location, mouse_keys);
 
         // draw
         let mut draw = rl.begin_drawing(&thread);
