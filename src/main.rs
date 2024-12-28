@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (mut rl, thread) = raylib::init()
         .size(WIDTH as i32, HEIGHT as i32)
         .title("RSGLITCH")
+        .resizable()
         .build();
 
     let vertex_shader_code = fs::read_to_string("shaders/vertex.vs")?;
