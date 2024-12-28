@@ -56,7 +56,12 @@ pub fn capture_input_states() -> ([i32; 256], [f32; 2], [i32; 2]) {
         key_states[key as usize] = 1;
     }
 
-    let mouse_coords = [mouse.coords.0 as f32, mouse.coords.1 as f32];
+    // normalize mouse coords
+    let mouse_coords = [
+        (mouse.coords.0 as f32) / 1960.0 - 1.0 + 0.035,
+        (mouse.coords.1 as f32) / 1080.0,
+    ];
+
     let mut mouse_key_states = [0i32; 2];
     if mouse.button_pressed[1] == true {
         mouse_key_states[0] = 1;

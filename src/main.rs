@@ -57,16 +57,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let keyboard_keys_location = shader.get_shader_location("keyboardKeys");
     let mouse_position_location = shader.get_shader_location("mousePosition");
     // let mouse_keys_location = shader.get_shader_location("mouseKeys");
+    // let time_location = shader.get_shader_location("time");
     println!("uniform locations: ");
     println!("texture: {texture_location}");
     // println!("keyboardKeys: {keyboard_keys_location}");
     println!("mousePosition: {mouse_position_location}");
     // println!("mouseKeys: {mouse_keys_location}");
+    // println!("time: {time_location}");
 
     shader.set_shader_value_texture(texture_location, &texture);
 
     // main loop
     while !rl.window_should_close() {
+        // let time = rl.get_time() as f32;
         // update captured texture
         let mut shared = shared_buffer.lock().unwrap();
         shared = condvar.wait(shared).unwrap();
@@ -78,13 +81,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         // shader.set_shader_value(keyboard_keys_location, &keyboard_keys[..]);
         shader.set_shader_value(mouse_position_location, mouse_coord);
         // shader.set_shader_value(mouse_keys_location, mouse_keys);
+        // shader.set_shader_value(time_location, time);
 
         // draw
         let mut draw = rl.begin_drawing(&thread);
         draw.clear_background(Color::BLACK);
         {
             let mut shader_mode = draw.begin_shader_mode(&shader);
-
             shader_mode.draw_texture(&texture, 0, 0, Color::WHITE);
         }
     }
