@@ -1,67 +1,30 @@
-extern crate ffmpeg_next as ffmpeg;
-use minifb::{Key, Scale, ScaleMode, Window, WindowOptions};
-use rayon::prelude::*;
-use rdev::{listen, Event};
-use scrap::{Capturer, Display};
 use std::{
     error::Error,
+    fs,
     sync::{Arc, Condvar, Mutex},
     thread,
-    time::Duration,
 };
 
-fn capture_screen(
-    shared_buffer: Arc<Mutex<Vec<u32>>>,
-    condvar: Arc<Condvar>,
-    stop_signal: Arc<Mutex<bool>>,
-) -> Result<(), Box<dyn Error>> {
-    let display = Display::primary()?;
-    let mut capturer = Capturer::new(display)?;
-    let width = capturer.width();
-    let height = capturer.height();
+extern crate raylib;
+use raylib::prelude::*;
 
-    loop {
-        if *stop_signal.lock().unwrap() {
-            break;
-        }
+mod capture;
+use capture::capture_screen;
 
-        match capturer.frame() {
-            Ok(frame) => {
-                // convert frame from BGRA to ARGB for minifb
-                let mut buffer = vec![0; width * height];
-                buffer
-                    .par_chunks_mut(width.into())
-                    .enumerate()
-                    .for_each(|(y, row)| {
-                        for x in 0..width {
-                            let idx = (y * width + x) * 4;
-                            let b = frame[idx];
-                            let g = frame[idx + 1];
-                            let r = frame[idx + 2];
-                            row[x] =
-                                0xFF000000 | ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
-                        }
-                    });
+fn update_texture_from_buffer(texture: &mut Texture2D, buffer: &Vec<u32>) {
+    let byte_data: Vec<u8> = buffer
+        .iter()
+        .flat_map(|&pixel| {
+            vec![
+                ((pixel >> 16) & 0xFF) as u8, // Red
+                ((pixel >> 8) & 0xFF) as u8,  // Green
+                (pixel & 0xFF) as u8,         // Blue
+                ((pixel >> 24) & 0xFF) as u8, // Alpha
+            ]
+        })
+        .collect();
 
-                if let Ok(mut shared) = shared_buffer.lock() {
-                    std::mem::swap(&mut *shared, &mut buffer);
-                    condvar.notify_all();
-                } else {
-                    eprintln!("Failed o lock shared buffer for writing");
-                }
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                println!("Would block error: {e}");
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(e) => {
-                eprintln!("Error capturing frame: {e}");
-                break;
-            }
-        }
-    }
-
-    Ok(())
+    texture.update_texture(&byte_data);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -70,61 +33,69 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let shared_buffer = Arc::new(Mutex::new(vec![0; WIDTH * HEIGHT]));
     let condvar = Arc::new(Condvar::new());
-    let stop_signal = Arc::new(Mutex::new(false));
 
     // screen capture thread
     let capture_buffer = Arc::clone(&shared_buffer);
     let condvar_clone = Arc::clone(&condvar);
-    let stop_signal_clone = Arc::new(Mutex::new(false));
+    let stop_signal = Arc::new(Mutex::new(false));
     thread::spawn(move || {
-        if let Err(e) = capture_screen(capture_buffer, condvar_clone, stop_signal_clone) {
+        if let Err(e) = capture_screen(capture_buffer, condvar_clone, stop_signal) {
             eprintln!("Screen capture error: {e:?}");
         }
     });
 
-    // global input monitoring thread
-    thread::spawn(|| {
-        if let Err(e) = listen(|_event: Event| {
-            // println!("Global event: {event:?}");
-        }) {
-            eprintln!("Event error: {e:?}");
-        }
-    });
+    // raylib setup
+    let (mut rl, thread) = raylib::init()
+        .size(WIDTH as i32, HEIGHT as i32)
+        .title("RSGLITCH")
+        .build();
 
-    // rendering window
-    let window_options = WindowOptions {
-        borderless: false,
-        title: true,
-        resize: true,
-        scale: Scale::X1,
-        scale_mode: ScaleMode::Center,
-        topmost: false,
-        transparency: false,
-        none: false,
-    };
-    let mut window = Window::new("RSGLITCH", WIDTH, HEIGHT, window_options)?;
+    let vertex_shader_code = fs::read_to_string("shaders/vertex.vs")?;
+    let fragment_shader_code = fs::read_to_string("shaders/fragment.fs")?;
 
-    window.set_target_fps(60);
+    // load shader
+    let mut shader = rl.load_shader_from_memory(
+        &thread,
+        Some(&vertex_shader_code),
+        Some(&fragment_shader_code),
+    );
 
-    // rendering thread
-    loop {
-        if !window.is_open() || window.is_key_down(Key::Q) {
-            *stop_signal.lock().unwrap() = true;
-            break;
-        }
+    // create rectangle to render the texture on
+    // let rec = Rectangle::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32);
 
+    // load initial empty texture
+    let mut texture = rl
+        .load_texture_from_image(
+            &thread,
+            &Image::gen_image_color(WIDTH as i32, HEIGHT as i32, Color::BLACK),
+        )
+        .unwrap();
+
+    let texture_location = shader.get_shader_location("texture0");
+    if texture_location != -1 {
+        shader.set_shader_value_texture(texture_location, &texture);
+    } else {
+        eprintln!("Error: texture0 not found");
+    }
+
+    // main loop
+    while !rl.window_should_close() {
+        // update captured texture
         let mut shared = shared_buffer.lock().unwrap();
+        shared = condvar.wait(shared).unwrap();
 
-        while shared.is_empty() {
-            shared = condvar.wait(shared).unwrap();
+        update_texture_from_buffer(&mut texture, &shared);
+
+        // draw
+        let mut draw = rl.begin_drawing(&thread);
+        draw.clear_background(Color::BLACK);
+        {
+            let mut shader_mode = draw.begin_shader_mode(&shader);
+            // shader_mode.draw_circle(100, 100, 100.0, Color::BLUE);
+            shader_mode.draw_texture(&texture, 0, 0, Color::WHITE);
         }
-
-        if let Err(e) = window.update_with_buffer(&shared, WIDTH, HEIGHT) {
-            eprintln!("Error updating window with buffer: {e}");
-            break;
-        }
-
-        shared.clear();
+        // draw.draw_texture(&texture, 0, 0, Color::WHITE);
+        // draw.draw_circle(100, 100, 100.0, Color::BLUE);
     }
 
     Ok(())
