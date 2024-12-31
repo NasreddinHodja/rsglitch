@@ -6,6 +6,7 @@ out vec4 fragColor;
 
 uniform sampler2D texture0;
 uniform vec2 mousePosition;
+uniform vec2 mouseKeys;
 uniform float time;
 
 float random(vec2 st) {
@@ -47,6 +48,29 @@ vec4 aberrationsAroundMouse() {
     return finalColor;
 }
 
+vec4 sharpen(vec4 color) {
+    mat3 sharpenKernel = mat3(
+        -2.5, -2.5, -2.5,
+        -2.5, 20.9, -2.5,
+        -2.5, -2.5, -2.5
+    );
+
+
+    vec2 texelSize = 1.0 / vec2(textureSize(texture0, 0));
+    vec4 result = vec4(0.0);
+    
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            vec2 offset = vec2(x, y) * texelSize;
+            vec4 neighborColor = texture(texture0, fragTexCoord + offset);
+            vec4 flipped = flip(neighborColor);
+            result += flipped * sharpenKernel[x + 1][y + 1];
+        }
+    }
+
+    return result;
+}
+
 vec4 applyThreshold(vec4 color, float threshold) {
     float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
 
@@ -61,8 +85,14 @@ void main() {
     vec4 texColor = texture(texture0, fragTexCoord);
 
     vec4 aberrated = aberrationsAroundMouse();
-    vec4 flipped = flip(aberrated);
-    vec4 thresholded = applyThreshold(flipped, 0.50);
+    vec4 finalColor = flip(aberrated);
 
-    fragColor = thresholded;
+    if (mouseKeys[0] == 1) {
+        finalColor = sharpen(finalColor);
+    }
+    if (mouseKeys[1] == 1) {
+        finalColor = applyThreshold(finalColor, 0.50);
+    }
+
+    fragColor = finalColor;
 }

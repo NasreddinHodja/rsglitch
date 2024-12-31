@@ -46,14 +46,14 @@ pub fn capture_screen(
     Ok(())
 }
 
-pub fn capture_input_states() -> ([i32; 256], [f32; 2], [i32; 2]) {
+pub fn capture_input_states() -> ([f32; 256], [f32; 2], [f32; 2]) {
     let device_state = DeviceState::new();
     let keys = device_state.get_keys();
     let mouse = device_state.get_mouse();
 
-    let mut key_states = [0i32; 256];
+    let mut key_states = [0f32; 256];
     for key in keys {
-        key_states[key as usize] = 1;
+        key_states[key as usize] = 1.0;
     }
 
     // normalize mouse coords
@@ -62,12 +62,12 @@ pub fn capture_input_states() -> ([i32; 256], [f32; 2], [i32; 2]) {
         (mouse.coords.1 as f32) / 1080.0,
     ];
 
-    let mut mouse_key_states = [0i32; 2];
+    let mut mouse_key_states = [0f32; 2];
     if mouse.button_pressed[1] == true {
-        mouse_key_states[0] = 1;
+        mouse_key_states[0] = 1.0;
     }
     if mouse.button_pressed[3] == true {
-        mouse_key_states[1] = 1;
+        mouse_key_states[1] = 1.0;
     }
 
     (key_states, mouse_coords, mouse_key_states)
