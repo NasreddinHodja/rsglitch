@@ -81,11 +81,87 @@ vec4 applyThreshold(vec4 color, float threshold) {
     return color;
 }
 
+vec4 pixelize() {
+    float pixelSize = 0.01;
+    vec2 texCoord = floor(fragTexCoord / pixelSize) * pixelSize;
+    return texture(texture0, texCoord);
+}
+
+vec4 flicker(vec4 texColor) {
+    float flickerAmount = random(vec2(time * 0.1, 0.0)) * 0.10;
+    vec2 offset = vec2(sin(time * 0.5) * flickerAmount, cos(time * 0.3) * flickerAmount);
+    
+    vec2 distortedTexCoord = fragTexCoord + offset;
+    vec4 flickeredColor = texture(texture0, distortedTexCoord);
+    
+    return flickeredColor;
+}
+
+vec4 staticNoise(vec4 texColor) {
+    float noise = random(vec2(fragTexCoord.x + time, fragTexCoord.y + time));
+    float noiseIntensity = smoothstep(0.25, 0.01, noise);
+    return texColor * (1.0 - noiseIntensity) + vec4(noiseIntensity);
+}
+
+vec4 waveDistortion(vec4 texColor) {
+    float waveFactor = sin(time + fragTexCoord.y * 20.0) * 0.50;
+
+    texColor.r += waveFactor * texColor.r;
+    texColor.g += waveFactor * texColor.g;
+    texColor.b += waveFactor * texColor.b;
+    
+    return texColor;
+}
+
+vec4 streak(vec4 texColor) {
+    float streakFactor = sin(time * 0.5 + fragTexCoord.x * 10.0) * 0.9;  // Horizontal streaking
+
+    texColor.r += streakFactor * texColor.r;
+    texColor.g += streakFactor * texColor.g;
+    texColor.b += streakFactor * texColor.b;
+
+    return texColor;
+}
+
+vec4 horizontalSlice(vec4 texColor) {
+    float sliceHeight = 0.05;
+    int sliceIndex = int(fragTexCoord.y / sliceHeight);
+    float shift = random(vec2(sliceIndex, time)) * 0.6 - 0.05;
+
+    vec2 newCoord = fragTexCoord + vec2(0.0, shift);
+    
+    vec4 newTexColor = texture(texture0, newCoord);
+
+    return newTexColor;
+}
+
+vec4 wavywavy(vec4 texColor) {
+    float lineShift = sin(time + fragTexCoord.y * 50.0) * 0.02;
+    vec2 newCoord = fragTexCoord + vec2(lineShift, 0.0);
+    
+    vec4 newTexColor = texture(texture0, newCoord);
+
+    return newTexColor;
+}
+
+vec4 overexposure(vec4 texColor) {
+    float randomBright = random(vec2(fragTexCoord.x + time, fragTexCoord.y + time));
+    float intensity = smoothstep(0.9, 1.0, randomBright);
+    return texColor * (1.0 - intensity) + vec4(intensity);
+}
+
 void main() {
     vec4 texColor = texture(texture0, fragTexCoord);
 
-    vec4 aberrated = aberrationsAroundMouse();
-    vec4 finalColor = flip(aberrated);
+    // vec4 finalColor = aberrationsAroundMouse();
+    // vec4 finalColor = pixelize();
+    // vec4 finalColor = flicker(texColor);
+    // vec4 finalColor = staticNoise(texColor);
+    // vec4 finalColor = waveDistortion(texColor);
+    // vec4 finalColor = streak(texColor);
+    // vec4 finalColor = horizontalSlice(texColor);
+    vec4 finalColor = wavywavy(texColor);
+    finalColor = flip(finalColor);
 
     if (mouseKeys[0] == 1) {
         finalColor = sharpen(finalColor);
