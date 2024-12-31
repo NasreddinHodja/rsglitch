@@ -12,12 +12,14 @@ float random(vec2 st) {
     return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
-void main() {
-    vec4 texColor = texture(texture0, fragTexCoord);
+vec4 flip(vec4 color) {
+    return vec4(color.b, color.g, color.r, color.a);
+}
 
+vec4 aberrationsAroundMouse() {
     float dist = distance(fragTexCoord, mousePosition);
 
-    float radius = 0.1;
+    float radius = 0.3;
 
     float strength = smoothstep(radius, 0.0, dist);
 
@@ -36,11 +38,31 @@ void main() {
     vec4 blueChannel = texture(texture0, fragTexCoord + blueOffset);
 
     vec4 finalColor = vec4(
-        mix(texture(texture0, fragTexCoord).r, redChannel.r, strength),
-        mix(texture(texture0, fragTexCoord).g, greenChannel.g, strength),
-        mix(texture(texture0, fragTexCoord).b, blueChannel.b, strength),
+        redChannel.r,
+        greenChannel.g, 
+        blueChannel.b, 
         texture(texture0, fragTexCoord).a
     );
 
-    fragColor = vec4(finalColor.b, finalColor.g, finalColor.r, finalColor.a);
+    return finalColor;
+}
+
+vec4 applyThreshold(vec4 color, float threshold) {
+    float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+
+    if (luminance < threshold) {
+        return vec4(0.0, 0.0, 0.0, color.a);
+    }
+
+    return color;
+}
+
+void main() {
+    vec4 texColor = texture(texture0, fragTexCoord);
+
+    vec4 aberrated = aberrationsAroundMouse();
+    vec4 flipped = flip(aberrated);
+    vec4 thresholded = applyThreshold(flipped, 0.50);
+
+    fragColor = thresholded;
 }
